@@ -97,7 +97,11 @@ class LiveTranslateApp {
             this.showStatus('Connecting to server...', 'connecting');
             
             // Connect to our WebSocket server
-            this.ws = new WebSocket('ws://localhost:3000');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsHost = window.location.host;
+            const wsUrl = `${wsProtocol}//${wsHost}`;
+            console.log('Connecting to WebSocket:', wsUrl);
+            this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
                 console.log('WebSocket connected');

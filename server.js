@@ -23,9 +23,29 @@ const wss = new WebSocket.Server({
     server,
     path: '/',
     verifyClient: (info) => {
-        console.log('WebSocket connection attempt from:', info.origin);
+        console.log('🔍 WebSocket connection attempt from:', info.origin);
+        console.log('🔍 Request details:', {
+            secure: info.secure,
+            origin: info.origin,
+            req: {
+                url: info.req.url,
+                headers: {
+                    host: info.req.headers.host,
+                    upgrade: info.req.headers.upgrade,
+                    connection: info.req.headers.connection
+                }
+            }
+        });
         return true;
     }
+});
+
+wss.on('error', (error) => {
+    console.error('❌ WebSocket Server Error:', error);
+});
+
+wss.on('listening', () => {
+    console.log('🎧 WebSocket server is listening for connections');
 });
 
 // Check for OpenAI API key
@@ -358,6 +378,14 @@ class RealtimeTranslator {
 
 wss.on('connection', (ws, request) => {
     console.log('✅ Client connected from:', request.socket.remoteAddress);
+    console.log('🔗 Connection details:', {
+        url: request.url,
+        headers: {
+            origin: request.headers.origin,
+            host: request.headers.host,
+            upgrade: request.headers.upgrade
+        }
+    });
     const translator = new RealtimeTranslator(ws);
     
     ws.on('message', async (message) => {
@@ -405,13 +433,20 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} in your browser`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+    console.log(`🚀 Server running on ${HOST}:${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔌 WebSocket server ready for connections`);
     
-    if (!process.env.OPENAI_API_KEY) {
+    if (!apiKey) {
         console.warn('⚠️  OPENAI_API_KEY environment variable not set!');
-        console.log('Please set your OpenAI API key:');
-        console.log('export OPENAI_API_KEY=your_api_key_here');
+        console.log('📝 Please configure your OpenAI API key:');
+        console.log('🔧 For Hugging Face Spaces: Add OPENAI_API_KEY as a secret in Space settings');
+        console.log('🔧 For local development: Add OPENAI_API_KEY=your_key_here to your .env file');
+        console.log('🔑 Get your API key from: https://platform.openai.com/api-keys');
+    } else {
+        console.log('✅ OpenAI API key configured - ready to process requests');
     }
 });
