@@ -58,6 +58,27 @@ class LiveTranslateApp {
         this.status.style.display = 'none';
     }
     
+    showAPIKeyWarning(message) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'api-key-warning';
+        warningDiv.innerHTML = `
+            <h4>⚙️ Configuration Required</h4>
+            <p><strong>${message}</strong></p>
+            <p>To use this application, an OpenAI API key must be configured:</p>
+            <ul style="text-align: left; display: inline-block;">
+                <li><strong>Hugging Face Spaces:</strong> Add <code>OPENAI_API_KEY</code> as a secret in Space settings</li>
+                <li><strong>Local Development:</strong> Add <code>OPENAI_API_KEY=your_key_here</code> to your .env file</li>
+            </ul>
+            <p>Get your API key from: <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API Keys</a></p>
+        `;
+        
+        // Insert warning after controls
+        const controls = document.querySelector('.controls');
+        controls.parentNode.insertBefore(warningDiv, controls.nextSibling);
+        
+        this.showStatus('Configuration required - see details above', 'error');
+    }
+    
     async startListening() {
         try {
             console.log('Starting listening process...');
@@ -179,7 +200,11 @@ class LiveTranslateApp {
                 this.handleSpeakerChange();
                 break;
             case 'error':
-                this.showStatus('Error: ' + data.message, 'error');
+                if (data.message.includes('API key')) {
+                    this.showAPIKeyWarning(data.message);
+                } else {
+                    this.showStatus('Error: ' + data.message, 'error');
+                }
                 break;
         }
     }

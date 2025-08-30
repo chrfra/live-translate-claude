@@ -28,10 +28,27 @@ const wss = new WebSocket.Server({
     }
 });
 
-// OpenAI client - you'll need to set your API key
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+// Check for OpenAI API key
+const apiKey = process.env.OPENAI_API_KEY;
+if (!apiKey) {
+    console.error('❌ OPENAI_API_KEY environment variable is not set!');
+    console.log('📝 Please set your OpenAI API key in the environment variables.');
+    console.log('🔧 For Hugging Face Spaces: Add OPENAI_API_KEY as a secret in Space settings');
+    console.log('🔧 For local development: Add OPENAI_API_KEY=your_key_here to your .env file');
+    
+    // Don't exit, let the server start but show error to users
+}
+
+// Initialize OpenAI client (will be null if no API key)
+let openai = null;
+if (apiKey) {
+    openai = new OpenAI({
+        apiKey: apiKey
+    });
+    console.log('✅ OpenAI client initialized successfully');
+} else {
+    console.log('⚠️ OpenAI client not initialized - API key missing');
+}
 
 const languageMap = {
     'sv': 'Swedish',
@@ -54,13 +71,22 @@ class RealtimeTranslator {
 
     async connect() {
         try {
+            if (!apiKey) {
+                console.log('❌ Cannot connect to OpenAI - API key not set');
+                this.sendToClient({ 
+                    type: 'error', 
+                    message: 'OpenAI API key not configured. Please add OPENAI_API_KEY to the environment variables.' 
+                });
+                return;
+            }
+            
             console.log('Attempting to connect to OpenAI Realtime API...');
-            console.log('Using API key:', process.env.OPENAI_API_KEY ? `${process.env.OPENAI_API_KEY.substring(0, 20)}...` : 'NOT SET');
+            console.log('Using API key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'NOT SET');
             
             // Connect to OpenAI Realtime API
             this.openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
                 headers: {
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                    'Authorization': `Bearer ${apiKey}`,
                     'OpenAI-Beta': 'realtime=v1'
                 }
             });
@@ -190,6 +216,14 @@ class RealtimeTranslator {
             return;
         }
 
+        if (!openai) {
+            this.sendToClient({
+                type: 'error',
+                message: 'Translation unavailable - OpenAI API key not configured'
+            });
+            return;
+        }
+
         try {
             // Get full sentence translation
             const translationResponse = await openai.chat.completions.create({
@@ -228,6 +262,11 @@ class RealtimeTranslator {
     }
 
     async getWordByWordTranslation(text) {
+        if (!openai) {
+            console.log('⚠️ Skipping word-by-word translation - OpenAI not available');
+            return;
+        }
+        
         try {
             const response = await openai.chat.completions.create({
                 model: 'gpt-4o-mini',
