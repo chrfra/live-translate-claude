@@ -35,6 +35,8 @@ Add your OpenAI API key as a secret in the Hugging Face Spaces settings:
 - Key: `OPENAI_API_KEY`
 - Value: Your OpenAI API key from https://platform.openai.com/api-keys
 
+The Space will automatically restart when you add the API key secret.
+
 ## Supported Languages
 
 - **Swedish (sv)** - Default input language
