@@ -125,10 +125,8 @@ class RealtimeTranslator {
                         input_audio_format: 'pcm16',
                         input_audio_transcription: {
                             model: 'whisper-1'
-                        },
-                        // Disable voice responses
-                        voice: null,
-                        output_audio_format: null
+                        }
+                        // Note: voice and output_audio_format omitted entirely for text-only mode
                     }
                 });
                 console.log('Session configuration sent to OpenAI');
