@@ -1,0 +1,19 @@
+{
+  "name": "live-translate-claude",
+  "version": "1.0.0",
+  "description": "Real-time speech transcription and translation app using OpenAI Realtime API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "openai": "^4.20.0",
+    "cors": "^2.8.5"
+  },
+  "keywords": ["speech", "translation", "realtime", "openai"],
+  "author": "",
+  "license": "MIT"
+}
