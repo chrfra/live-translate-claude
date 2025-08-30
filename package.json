@@ -8,12 +8,18 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^4.18.2",
-    "ws": "^8.14.2",
     "openai": "^4.20.0",
-    "cors": "^2.8.5"
+    "ws": "^8.14.2"
   },
-  "keywords": ["speech", "translation", "realtime", "openai"],
+  "keywords": [
+    "speech",
+    "translation",
+    "realtime",
+    "openai"
+  ],
   "author": "",
   "license": "MIT"
 }

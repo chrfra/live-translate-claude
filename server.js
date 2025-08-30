@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const WebSocket = require('ws');
 const http = require('http');
@@ -6,10 +7,26 @@ const OpenAI = require('openai');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// Add CORS middleware
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    next();
+});
 
 // Serve static files
 app.use(express.static(path.join(__dirname)));
+
+// Create WebSocket server with better error handling
+const wss = new WebSocket.Server({ 
+    server,
+    path: '/',
+    verifyClient: (info) => {
+        console.log('WebSocket connection attempt from:', info.origin);
+        return true;
+    }
+});
 
 // OpenAI client - you'll need to set your API key
 const openai = new OpenAI({
@@ -37,6 +54,9 @@ class RealtimeTranslator {
 
     async connect() {
         try {
+            console.log('Attempting to connect to OpenAI Realtime API...');
+            console.log('Using API key:', process.env.OPENAI_API_KEY ? `${process.env.OPENAI_API_KEY.substring(0, 20)}...` : 'NOT SET');
+            
             // Connect to OpenAI Realtime API
             this.openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
                 headers: {
@@ -46,7 +66,7 @@ class RealtimeTranslator {
             });
 
             this.openaiWs.on('open', () => {
-                console.log('Connected to OpenAI Realtime API');
+                console.log('✅ Connected to OpenAI Realtime API');
                 this.isConnected = true;
                 
                 // Configure the session
@@ -65,6 +85,7 @@ class RealtimeTranslator {
                         }
                     }
                 });
+                console.log('Session configuration sent to OpenAI');
             });
 
             this.openaiWs.on('message', (data) => {
@@ -76,14 +97,14 @@ class RealtimeTranslator {
                 }
             });
 
-            this.openaiWs.on('close', () => {
-                console.log('OpenAI connection closed');
+            this.openaiWs.on('close', (code, reason) => {
+                console.log(`❌ OpenAI connection closed. Code: ${code}, Reason: ${reason}`);
                 this.isConnected = false;
             });
 
             this.openaiWs.on('error', (error) => {
-                console.error('OpenAI connection error:', error);
-                this.sendToClient({ type: 'error', message: 'OpenAI connection error' });
+                console.error('❌ OpenAI connection error:', error);
+                this.sendToClient({ type: 'error', message: 'OpenAI connection error: ' + error.message });
             });
 
         } catch (error) {
@@ -258,10 +279,22 @@ class RealtimeTranslator {
             const buffer = Buffer.from(new Int16Array(audioData).buffer);
             const base64Audio = buffer.toString('base64');
             
+            // Only log every 500th audio chunk to avoid spam
+            if (!this.audioChunkCounter) this.audioChunkCounter = 0;
+            this.audioChunkCounter++;
+            
+            if (this.audioChunkCounter % 500 === 0) {
+                console.log(`📡 Sending audio chunk ${this.audioChunkCounter} to OpenAI (${buffer.length} bytes)`);
+            }
+            
             this.sendToOpenAI({
                 type: 'input_audio_buffer.append',
                 audio: base64Audio
             });
+        } else {
+            if (this.audioChunkCounter % 100 === 0) {
+                console.log(`❌ Cannot send audio - OpenAI not connected. Connected: ${this.isConnected}, ReadyState: ${this.openaiWs?.readyState}`);
+            }
         }
     }
 
@@ -284,16 +317,18 @@ class RealtimeTranslator {
     }
 }
 
-wss.on('connection', (ws) => {
-    console.log('Client connected');
+wss.on('connection', (ws, request) => {
+    console.log('✅ Client connected from:', request.socket.remoteAddress);
     const translator = new RealtimeTranslator(ws);
     
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
+            console.log('📨 Received message type:', data.type);
             
             switch (data.type) {
                 case 'start':
+                    console.log('🚀 Starting translation session...');
                     await translator.connect();
                     break;
                     
@@ -302,18 +337,26 @@ wss.on('connection', (ws) => {
                     break;
                     
                 case 'stop':
+                    console.log('⏹️ Stopping translation session...');
                     translator.disconnect();
                     break;
+                    
+                default:
+                    console.log('❓ Unknown message type:', data.type);
             }
         } catch (error) {
-            console.error('Error handling message:', error);
-            ws.send(JSON.stringify({ type: 'error', message: 'Server error' }));
+            console.error('❌ Error handling message:', error);
+            ws.send(JSON.stringify({ type: 'error', message: 'Server error: ' + error.message }));
         }
     });
     
-    ws.on('close', () => {
-        console.log('Client disconnected');
+    ws.on('close', (code, reason) => {
+        console.log(`👋 Client disconnected. Code: ${code}, Reason: ${reason}`);
         translator.disconnect();
+    });
+    
+    ws.on('error', (error) => {
+        console.error('❌ WebSocket error:', error);
     });
 });
 

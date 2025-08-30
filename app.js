@@ -60,6 +60,7 @@ class LiveTranslateApp {
     
     async startListening() {
         try {
+            console.log('Starting listening process...');
             this.showStatus('Requesting microphone access...', 'connecting');
             
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -71,13 +72,23 @@ class LiveTranslateApp {
                 } 
             });
             
-            this.showStatus('Connecting to OpenAI Realtime API...', 'connecting');
+            console.log('Microphone access granted');
+            this.showStatus('Connecting to server...', 'connecting');
             
             // Connect to our WebSocket server
             this.ws = new WebSocket('ws://localhost:3000');
             
             this.ws.onopen = () => {
+                console.log('WebSocket connected');
                 this.showStatus('Connected! Start speaking...', 'connected');
+                
+                // Send start message
+                this.ws.send(JSON.stringify({
+                    type: 'start',
+                    inputLanguage: this.inputLanguage.value,
+                    outputLanguage: this.outputLanguage.value
+                }));
+                
                 this.setupAudioRecording(stream);
                 this.startButton.style.display = 'none';
                 this.stopButton.style.display = 'inline-block';
@@ -85,40 +96,54 @@ class LiveTranslateApp {
             };
             
             this.ws.onmessage = (event) => {
+                console.log('Received message:', event.data);
                 const data = JSON.parse(event.data);
                 this.handleRealtimeMessage(data);
             };
             
             this.ws.onclose = () => {
+                console.log('WebSocket connection closed');
                 this.showStatus('Connection closed', 'error');
                 this.stopListening();
             };
             
             this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
                 this.showStatus('Connection error: ' + error.message, 'error');
                 this.stopListening();
             };
             
         } catch (error) {
+            console.error('Error starting listening:', error);
             this.showStatus('Error accessing microphone: ' + error.message, 'error');
         }
     }
     
     setupAudioRecording(stream) {
+        console.log('Setting up audio recording...');
         this.audioContext = new AudioContext({ sampleRate: 24000 });
         const source = this.audioContext.createMediaStreamSource(stream);
         
         // Create a script processor for real-time audio processing
         const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
         
+        let audioChunkCount = 0;
         processor.onaudioprocess = (event) => {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 const audioData = event.inputBuffer.getChannelData(0);
                 const int16Array = new Int16Array(audioData.length);
                 
                 // Convert float32 to int16
+                let hasAudio = false;
                 for (let i = 0; i < audioData.length; i++) {
                     int16Array[i] = Math.max(-32768, Math.min(32767, Math.floor(audioData[i] * 32768)));
+                    if (Math.abs(audioData[i]) > 0.01) hasAudio = true;
+                }
+                
+                // Only log every 100th chunk to avoid spam
+                audioChunkCount++;
+                if (audioChunkCount % 100 === 0) {
+                    console.log(`Audio chunk ${audioChunkCount}, has audio: ${hasAudio}`);
                 }
                 
                 // Send audio data to server
@@ -136,6 +161,7 @@ class LiveTranslateApp {
         
         this.processor = processor;
         this.audioStream = stream;
+        console.log('Audio recording setup complete');
     }
     
     handleRealtimeMessage(data) {

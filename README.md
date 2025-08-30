@@ -19,10 +19,12 @@ Real-time speech transcription and translation app using OpenAI's Realtime API. 
 
 ## Setup
 
-1. **Clone and install dependencies:**
+### Option 1: Docker (Recommended)
+
+1. **Clone the repository:**
    ```bash
-   cd ~/workspace/cursor-claude/live-translate-claude
-   npm install
+   git clone https://github.com/chrfra/live-translate-claude.git
+   cd live-translate-claude
    ```
 
 2. **Set up your OpenAI API Key:**
@@ -34,6 +36,29 @@ Real-time speech transcription and translation app using OpenAI's Realtime API. 
    # Get your API key from: https://platform.openai.com/api-keys
    ```
 
+3. **Run with Docker Compose:**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Open in browser:**
+   Navigate to `http://localhost:3000`
+
+### Option 2: Local Development
+
+1. **Clone and install dependencies:**
+   ```bash
+   git clone https://github.com/chrfra/live-translate-claude.git
+   cd live-translate-claude
+   npm install
+   ```
+
+2. **Set up your OpenAI API Key:**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your OPENAI_API_KEY
+   ```
+
 3. **Run the application:**
    ```bash
    npm start
@@ -41,6 +66,10 @@ Real-time speech transcription and translation app using OpenAI's Realtime API. 
 
 4. **Open in browser:**
    Navigate to `http://localhost:3000`
+
+### Option 3: Hugging Face Spaces
+
+Try the live demo at: [https://huggingface.co/spaces/chrfra/cursor-claude-translate](https://huggingface.co/spaces/chrfra/cursor-claude-translate)
 
 ## Usage
 
