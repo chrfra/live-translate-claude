@@ -115,20 +115,20 @@ class RealtimeTranslator {
                 console.log('✅ Connected to OpenAI Realtime API');
                 this.isConnected = true;
                 
-                // Configure the session
+                // Configure the session for transcription-only mode
                 this.sendToOpenAI({
                     type: 'session.update',
                     session: {
-                        modalities: ['text', 'audio'],
-                        instructions: `You are a real-time transcription and translation assistant. 
-                        Transcribe speech accurately and translate it to the target language. 
-                        Detect speaker changes and indicate when a new person starts speaking.`,
-                        voice: 'alloy',
+                        modalities: ['text'],  // Only text, no audio output
+                        instructions: 'You are a transcription assistant. Only transcribe speech accurately. Do not engage in conversation.',
+                        turn_detection: null,  // Disable automatic conversation handling
                         input_audio_format: 'pcm16',
-                        output_audio_format: 'pcm16',
                         input_audio_transcription: {
                             model: 'whisper-1'
-                        }
+                        },
+                        // Disable voice responses
+                        voice: null,
+                        output_audio_format: null
                     }
                 });
                 console.log('Session configuration sent to OpenAI');
@@ -160,49 +160,61 @@ class RealtimeTranslator {
     }
 
     handleOpenAIMessage(message) {
+        console.log('📨 OpenAI message type:', message.type);
+        
         switch (message.type) {
-            case 'input_audio_buffer.speech_started':
-                console.log('Speech started');
-                this.lastSpeechTime = Date.now();
+            case 'session.created':
+                console.log('✅ Session created successfully');
                 break;
 
-            case 'input_audio_buffer.speech_stopped':
-                console.log('Speech stopped');
-                this.processSpeechEnd();
+            case 'session.updated':
+                console.log('✅ Session updated successfully');
+                break;
+
+            case 'input_audio_buffer.committed':
+                console.log('🎯 Audio buffer committed, waiting for transcription...');
+                break;
+
+            case 'conversation.item.created':
+                console.log('📝 Conversation item created:', message.item?.type);
                 break;
 
             case 'conversation.item.input_audio_transcription.completed':
                 const transcript = message.transcript;
-                console.log('Transcript:', transcript);
-                this.handleTranscription(transcript);
-                break;
-
-            case 'response.audio_transcript.delta':
-                // Handle real-time transcription updates
-                if (message.delta) {
-                    this.sendToClient({
-                        type: 'transcript',
-                        text: message.delta,
-                        isFinal: false
-                    });
+                console.log('🎯 Transcription completed:', transcript);
+                if (transcript && transcript.trim()) {
+                    this.handleTranscription(transcript);
                 }
                 break;
 
-            case 'response.audio_transcript.done':
-                // Final transcription
-                if (message.transcript) {
-                    this.sendToClient({
-                        type: 'transcript',
-                        text: message.transcript,
-                        isFinal: true
-                    });
-                    this.translateText(message.transcript);
-                }
+            case 'conversation.item.input_audio_transcription.failed':
+                console.log('❌ Transcription failed:', message.error);
+                this.sendToClient({
+                    type: 'error',
+                    message: 'Transcription failed: ' + (message.error?.message || 'Unknown error')
+                });
+                break;
+
+            case 'input_audio_buffer.speech_started':
+                console.log('🎤 Speech detected');
+                this.lastSpeechTime = Date.now();
+                break;
+
+            case 'input_audio_buffer.speech_stopped':
+                console.log('⏸️ Speech ended');
+                // In transcription-only mode, we commit manually
                 break;
 
             case 'error':
-                console.error('OpenAI error:', message);
-                this.sendToClient({ type: 'error', message: message.error?.message || 'Unknown error' });
+                console.error('❌ OpenAI error:', message);
+                this.sendToClient({ 
+                    type: 'error', 
+                    message: message.error?.message || 'OpenAI API error'
+                });
+                break;
+
+            default:
+                console.log('📋 Unhandled message type:', message.type);
                 break;
         }
     }
@@ -346,10 +358,19 @@ class RealtimeTranslator {
                 console.log(`📡 Sending audio chunk ${this.audioChunkCounter} to OpenAI (${buffer.length} bytes)`);
             }
             
+            // Send audio to buffer
             this.sendToOpenAI({
                 type: 'input_audio_buffer.append',
                 audio: base64Audio
             });
+
+            // Commit buffer periodically for transcription (every 100 chunks ~ 2-3 seconds)
+            if (this.audioChunkCounter % 100 === 0) {
+                this.sendToOpenAI({
+                    type: 'input_audio_buffer.commit'
+                });
+                console.log('🎯 Committed audio buffer for transcription');
+            }
         } else {
             if (this.audioChunkCounter % 100 === 0) {
                 console.log(`❌ Cannot send audio - OpenAI not connected. Connected: ${this.isConnected}, ReadyState: ${this.openaiWs?.readyState}`);
