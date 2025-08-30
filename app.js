@@ -101,6 +101,13 @@ class LiveTranslateApp {
             const wsHost = window.location.host;
             const wsUrl = `${wsProtocol}//${wsHost}`;
             console.log('Connecting to WebSocket:', wsUrl);
+            console.log('Current location:', {
+                protocol: window.location.protocol,
+                host: window.location.host,
+                href: window.location.href,
+                isInFrame: window.self !== window.top
+            });
+            
             this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
